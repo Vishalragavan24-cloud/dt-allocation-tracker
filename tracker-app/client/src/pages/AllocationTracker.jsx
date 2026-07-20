@@ -1,7 +1,6 @@
 import { useState } from 'react'
-import { useAllocations, useAddAllocation } from '../hooks/useAllocations.js'
+import { useAllocations } from '../hooks/useAllocations.js'
 import { useTeamMembers } from '../hooks/useTeamMembers.js'
-import { defaultAllocation } from '../hooks/useAllocations.js'
 import AllocationTable from '../components/AllocationTable.jsx'
 import AllocationAlerts from '../components/AllocationAlerts.jsx'
 import InstructionsPanel from '../components/InstructionsPanel.jsx'
@@ -18,7 +17,6 @@ export default function AllocationTracker() {
 
   const { data: members = [], isLoading: loadingMembers } = useTeamMembers()
   const { data: allocations = [], isLoading: loadingAllocs, isError } = useAllocations()
-  const addAlloc = useAddAllocation()
 
   const showToast = (msg, type = 'error') => setToast({ msg, type })
 
@@ -28,15 +26,6 @@ export default function AllocationTracker() {
     if (statusFilter && a.status !== statusFilter) return false
     return true
   })
-
-  function addRow() {
-    const targetId = memberFilter ? parseInt(memberFilter) : members[0]?.id
-    if (!targetId) { showToast('Please add a team member first.', 'info'); return }
-    addAlloc.mutate(defaultAllocation(targetId), {
-      onSuccess: () => showToast('Row added successfully.', 'success'),
-      onError: () => showToast('Failed to add row.'),
-    })
-  }
 
   if (loadingMembers || loadingAllocs) return <Spinner size="lg" />
   if (isError) return (
@@ -59,9 +48,6 @@ export default function AllocationTracker() {
         <div className="flex items-center gap-2 flex-wrap">
           <button className="btn-secondary text-xs" onClick={() => exportToCSV(filtered)}>
             ↓ Export CSV
-          </button>
-          <button className="btn-primary text-xs" onClick={addRow} disabled={addAlloc.isPending}>
-            {addAlloc.isPending ? 'Adding...' : '+ Add Row'}
           </button>
         </div>
       </div>
