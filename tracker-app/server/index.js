@@ -52,7 +52,7 @@ function autoSeed() {
   const p = insertMember.run('Puja Deo', '6B').lastInsertRowid
   const s = insertMember.run('Senthil Sambhasivam', '6B').lastInsertRowid
 
-  const insertAccess = db.prepare('INSERT INTO access (team_member_id, current_access, access_type, required_access) VALUES (?,?,?,?)')
+  const insertAccess = db.prepare('INSERT OR IGNORE INTO access (team_member_id, current_access, access_type, required_access) VALUES (?,?,?,?)')
   insertAccess.run(p,
     'IBM Cloud (Blue Prism)-DOW\nRPA Control List Access - CBR_IBM-GBS-BI-XTW-BI_WIN_AccessControl\nPower Automate-DOW\nPower Automate Attended License\nUiPath-Micron\nUiPath Studio Attended License Access',
     '*Development & Test access available\n*VM Development access only\n*VM Testing & Production handled by GCC team',
