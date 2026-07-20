@@ -8,22 +8,18 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const DB_DIR = process.env.RENDER ? '/tmp' : __dirname
 const DB_PATH = path.join(DB_DIR, 'tracker.db')
 
-// Initialize sql.js synchronously-ish via top-level await (ES module)
 const SQL = await initSqlJs()
 
 // Load existing DB from disk or create fresh
 let db
 if (fs.existsSync(DB_PATH)) {
-  const fileBuffer = fs.readFileSync(DB_PATH)
-  db = new SQL.Database(fileBuffer)
+  db = new SQL.Database(fs.readFileSync(DB_PATH))
 } else {
   db = new SQL.Database()
 }
 
-// Persist db to disk after every write
 function persist() {
-  const data = db.export()
-  fs.writeFileSync(DB_PATH, Buffer.from(data))
+  fs.writeFileSync(DB_PATH, Buffer.from(db.export()))
 }
 
 // Create schema
@@ -69,47 +65,42 @@ db.run(`
 `)
 persist()
 
-// Helper: convert sql.js result rows to array of objects
-function rowsToObjects(result) {
-  if (!result || result.length === 0) return []
-  const { columns, values } = result[0]
-  return values.map(row => Object.fromEntries(columns.map((c, i) => [c, row[i]])))
+// sql.js Statement-based query helpers
+function queryAll(sql, params = []) {
+  const stmt = db.prepare(sql)
+  stmt.bind(params)
+  const rows = []
+  while (stmt.step()) rows.push(stmt.getAsObject())
+  stmt.free()
+  return rows
 }
 
-// Thin wrapper to mimic better-sqlite3 API used in routes
+function queryGet(sql, params = []) {
+  const stmt = db.prepare(sql)
+  stmt.bind(params)
+  const row = stmt.step() ? stmt.getAsObject() : null
+  stmt.free()
+  return row
+}
+
+function queryRun(sql, params = []) {
+  db.run(sql, params)
+  const id = queryGet('SELECT last_insert_rowid() as id', [])?.id || 0
+  persist()
+  return { lastInsertRowid: id, changes: db.getRowsModified() }
+}
+
+// Wrapper matching better-sqlite3 API used in routes
 const dbWrapper = {
   prepare(sql) {
     return {
-      all(...params) {
-        try {
-          const result = db.exec(sql, params.flat())
-          return rowsToObjects(result)
-        } catch (e) { console.error('DB all error:', e.message, sql); return [] }
-      },
-      get(...params) {
-        try {
-          const result = db.exec(sql, params.flat())
-          const rows = rowsToObjects(result)
-          return rows[0] || null
-        } catch (e) { console.error('DB get error:', e.message, sql); return null }
-      },
-      run(...params) {
-        try {
-          db.run(sql, params.flat())
-          persist()
-          const idResult = db.exec('SELECT last_insert_rowid() as id')
-          const changesResult = db.exec('SELECT changes() as c')
-          const id = idResult[0]?.values[0]?.[0] || 0
-          const changes = changesResult[0]?.values[0]?.[0] || 0
-          return { lastInsertRowid: id, changes }
-        } catch (e) { console.error('DB run error:', e.message, sql); return { lastInsertRowid: 0, changes: 0 } }
-      },
+      all(...params)  { return queryAll(sql, params.flat()) },
+      get(...params)  { return queryGet(sql, params.flat()) },
+      run(...params)  { return queryRun(sql, params.flat()) },
     }
   },
-  exec(sql) {
-    try { db.run(sql); persist() } catch (e) { console.error('DB exec error:', e.message) }
-  },
-  pragma() {}, // no-op — handled in schema above
+  exec(sql)   { db.run(sql); persist() },
+  pragma()    {},
 }
 
 export default dbWrapper
