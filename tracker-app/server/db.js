@@ -1,24 +1,39 @@
-import Database from 'better-sqlite3'
+// Pure WebAssembly SQLite — no native compilation, works on any Node version
+import initSqlJs from 'sql.js'
+import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-
-// On Render, /tmp is writable. Locally uses same directory as db.js
 const DB_DIR = process.env.RENDER ? '/tmp' : __dirname
 const DB_PATH = path.join(DB_DIR, 'tracker.db')
 
-const db = new Database(DB_PATH)
-db.pragma('journal_mode = WAL')
-db.pragma('foreign_keys = ON')
+// Initialize sql.js synchronously-ish via top-level await (ES module)
+const SQL = await initSqlJs()
 
-db.exec(`
+// Load existing DB from disk or create fresh
+let db
+if (fs.existsSync(DB_PATH)) {
+  const fileBuffer = fs.readFileSync(DB_PATH)
+  db = new SQL.Database(fileBuffer)
+} else {
+  db = new SQL.Database()
+}
+
+// Persist db to disk after every write
+function persist() {
+  const data = db.export()
+  fs.writeFileSync(DB_PATH, Buffer.from(data))
+}
+
+// Create schema
+db.run(`PRAGMA foreign_keys = ON;`)
+db.run(`
   CREATE TABLE IF NOT EXISTS team_members (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     band TEXT NOT NULL DEFAULT ''
   );
-
   CREATE TABLE IF NOT EXISTS allocations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     team_member_id INTEGER NOT NULL,
@@ -35,7 +50,6 @@ db.exec(`
     workload_capacity_limit INTEGER DEFAULT 8,
     FOREIGN KEY (team_member_id) REFERENCES team_members(id) ON DELETE CASCADE
   );
-
   CREATE TABLE IF NOT EXISTS monthly_allocations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     allocation_id INTEGER NOT NULL,
@@ -44,7 +58,6 @@ db.exec(`
     hours REAL DEFAULT 0,
     FOREIGN KEY (allocation_id) REFERENCES allocations(id) ON DELETE CASCADE
   );
-
   CREATE TABLE IF NOT EXISTS access (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     team_member_id INTEGER NOT NULL UNIQUE,
@@ -54,5 +67,49 @@ db.exec(`
     FOREIGN KEY (team_member_id) REFERENCES team_members(id) ON DELETE CASCADE
   );
 `)
+persist()
 
-export default db
+// Helper: convert sql.js result rows to array of objects
+function rowsToObjects(result) {
+  if (!result || result.length === 0) return []
+  const { columns, values } = result[0]
+  return values.map(row => Object.fromEntries(columns.map((c, i) => [c, row[i]])))
+}
+
+// Thin wrapper to mimic better-sqlite3 API used in routes
+const dbWrapper = {
+  prepare(sql) {
+    return {
+      all(...params) {
+        try {
+          const result = db.exec(sql, params.flat())
+          return rowsToObjects(result)
+        } catch (e) { console.error('DB all error:', e.message, sql); return [] }
+      },
+      get(...params) {
+        try {
+          const result = db.exec(sql, params.flat())
+          const rows = rowsToObjects(result)
+          return rows[0] || null
+        } catch (e) { console.error('DB get error:', e.message, sql); return null }
+      },
+      run(...params) {
+        try {
+          db.run(sql, params.flat())
+          persist()
+          const idResult = db.exec('SELECT last_insert_rowid() as id')
+          const changesResult = db.exec('SELECT changes() as c')
+          const id = idResult[0]?.values[0]?.[0] || 0
+          const changes = changesResult[0]?.values[0]?.[0] || 0
+          return { lastInsertRowid: id, changes }
+        } catch (e) { console.error('DB run error:', e.message, sql); return { lastInsertRowid: 0, changes: 0 } }
+      },
+    }
+  },
+  exec(sql) {
+    try { db.run(sql); persist() } catch (e) { console.error('DB exec error:', e.message) }
+  },
+  pragma() {}, // no-op — handled in schema above
+}
+
+export default dbWrapper

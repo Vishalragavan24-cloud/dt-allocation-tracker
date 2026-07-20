@@ -4,7 +4,7 @@
   "main": "index.js",
   "type": "module",
   "engines": {
-    "node": ">=20.0.0"
+    "node": "20.11.0"
   },
   "scripts": {
     "start": "node index.js",
@@ -13,7 +13,7 @@
     "build": "cd ../client && npm install && npm run build"
   },
   "dependencies": {
-    "better-sqlite3": "^9.4.3",
+    "sql.js": "^1.12.0",
     "cors": "^2.8.5",
     "express": "^4.18.3"
   }
