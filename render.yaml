@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: dt-allocation-tracker
+    runtime: node
+    region: singapore
+    plan: free
+    rootDir: tracker-app/server
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: RENDER
+        value: true
+      - key: NODE_VERSION
+        value: 20.11.0
