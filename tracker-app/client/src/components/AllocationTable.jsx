@@ -4,7 +4,7 @@ import { useUpdateAllocation, useDeleteAllocation, defaultAllocation, useAddAllo
 import StatusBadge from './StatusBadge.jsx'
 
 // ─── Inline editable cell ─────────────────────────────────────────────────────
-function EditableCell({ value, onSave, type = 'text', options = null, placeholder = 'click to edit' }) {
+function EditableCell({ value, onSave, type = 'text', options = null, placeholder = 'click to edit', wrap = false }) {
   const [editing, setEditing] = useState(false)
   const [val, setVal] = useState(value ?? '')
   const ref = useRef(null)
@@ -28,9 +28,9 @@ function EditableCell({ value, onSave, type = 'text', options = null, placeholde
     const display = (val !== '' && val !== null && val !== undefined) ? String(val) : null
     return (
       <div
-        className="cursor-pointer hover:bg-blue-50 px-1.5 py-1 rounded min-h-[28px] flex items-center"
+        className={`cursor-pointer hover:bg-blue-50 px-1.5 py-1 rounded min-h-[28px] ${wrap ? 'whitespace-pre-wrap break-words' : 'flex items-center'}`}
         onClick={() => setEditing(true)}
-        title="Click to edit"
+        title={wrap ? undefined : 'Click to edit'}
       >
         {display ?? <span className="text-gray-300 italic text-xs">{placeholder}</span>}
       </div>
@@ -451,8 +451,8 @@ export default function AllocationTable({ allocations, members, filterMemberId, 
                       <EditableCell value={alloc.status} options={STATUS_OPTIONS} onSave={v => save(alloc, 'status', v)} />
                       <StatusBadge status={alloc.status} />
                     </td>
-                    <td className="table-cell min-w-[180px] max-w-[220px]">
-                      <EditableCell value={alloc.remarks} type="textarea" onSave={v => save(alloc, 'remarks', v)} />
+                    <td className="table-cell min-w-[220px] max-w-[300px] align-top">
+                      <EditableCell value={alloc.remarks} type="textarea" wrap onSave={v => save(alloc, 'remarks', v)} />
                     </td>
                     <td className="table-cell min-w-[120px]">
                       <EditableCell value={alloc.backup_resource} onSave={v => save(alloc, 'backup_resource', v)} />
