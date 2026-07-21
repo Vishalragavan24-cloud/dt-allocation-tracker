@@ -221,7 +221,7 @@ export default function AllocationTable({ allocations, members, filterMemberId, 
     const idx = monthly.findIndex(x => x.month === monthKey)
     const entry = idx >= 0 ? { ...monthly[idx] } : { month: monthKey, allocation_percent: 0, hours: 0 }
 
-    const num = parseFloat(rawValue) || 0
+    const num = parseFloat(String(rawValue).replace('%', '')) || 0
     if (field === 'allocation_percent') {
       entry.allocation_percent = num / 100
       entry.hours = Math.round(entry.allocation_percent * 160)
@@ -468,9 +468,7 @@ export default function AllocationTable({ allocations, members, filterMemberId, 
                     {/* ── Monthly columns — BOTH Alloc % and Hours are fully editable ── */}
                     {activeMonths.map((month) => {
                       const ma = mMap[month] || { month, allocation_percent: 0, hours: 0 }
-                      const pctDisplay  = ma.allocation_percent > 0
-                        ? String(Math.round(ma.allocation_percent * 100))
-                        : '0'
+                      const pctDisplay  = `${Math.round(ma.allocation_percent * 100)}%`
                       const hrsDisplay  = ma.hours > 0
                         ? String(Math.round(ma.hours))
                         : '0'
